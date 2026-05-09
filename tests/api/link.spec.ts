@@ -40,6 +40,37 @@ describe('/api/link/ai', () => {
   })
 })
 
+describe('/api/link/og-ai', () => {
+  it('generates AI metadata for valid URL', async () => {
+    const response = await fetchWithAuth(`/api/link/og-ai?url=${encodeURIComponent('https://sink.cool')}`)
+
+    expect([200, 501]).toContain(response.status)
+
+    if (response.status === 200) {
+      const data = await response.json() as { title: string, description: string }
+      expect(data).toHaveProperty('title')
+      expect(data).toHaveProperty('description')
+      expect(typeof data.title).toBe('string')
+      expect(typeof data.description).toBe('string')
+    }
+  }, 30000)
+
+  it('returns 400 when url parameter is missing', async () => {
+    const response = await fetchWithAuth('/api/link/og-ai')
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 400 when url parameter is invalid', async () => {
+    const response = await fetchWithAuth('/api/link/og-ai?url=not-a-valid-url')
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 401 when accessing without auth', async () => {
+    const response = await fetch('/api/link/og-ai')
+    expect(response.status).toBe(401)
+  })
+})
+
 describe.sequential('/api/link/create', () => {
   it('creates new link with valid data', async () => {
     const response = await postJson('/api/link/create', testLinkPayload)
@@ -67,6 +98,37 @@ describe.sequential('/api/link/create', () => {
 
   it('returns 400 when url is invalid', async () => {
     const response = await postJson('/api/link/create', { url: 'not-a-valid-url', slug: 'test-slug' })
+    expect(response.status).toBe(400)
+  })
+
+  it('accepts lowercase geo key and returns uppercase key', async () => {
+    const slug = `geo-lower-${crypto.randomUUID()}`
+    const response = await postJson('/api/link/create', {
+      url: 'https://example.com',
+      slug,
+      geo: { cn: 'https://cn.example.com' },
+    })
+    expect(response.status).toBe(201)
+
+    const data = await response.json() as { link: { geo?: Record<string, string> } }
+    expect(data.link.geo).toEqual({ CN: 'https://cn.example.com' })
+  })
+
+  it('returns 400 when geo key is invalid', async () => {
+    const response = await postJson('/api/link/create', {
+      url: 'https://example.com',
+      slug: `geo-key-invalid-${crypto.randomUUID()}`,
+      geo: { USA: 'https://usa.example.com' },
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 400 when geo url is invalid', async () => {
+    const response = await postJson('/api/link/create', {
+      url: 'https://example.com',
+      slug: `geo-url-invalid-${crypto.randomUUID()}`,
+      geo: { CN: 'not-a-valid-url' },
+    })
     expect(response.status).toBe(400)
   })
 
@@ -217,6 +279,23 @@ describe.sequential('/api/link/edit', () => {
     expect(removeData.link.title).toBeUndefined()
     expect(removeData.link.cloaking).toBeUndefined()
     expect(removeData.link.redirectWithQuery).toBeUndefined()
+  })
+
+  it('removes geo when not provided in edit', async () => {
+    const payload = {
+      url: 'https://example.com',
+      slug: `edit-clear-geo-${crypto.randomUUID()}`,
+      geo: { CN: 'https://cn.example.com' },
+    }
+
+    const createResponse = await postJson('/api/link/create', payload)
+    expect(createResponse.status).toBe(201)
+
+    const editResponse = await putJson('/api/link/edit', { url: payload.url, slug: payload.slug })
+    expect(editResponse.status).toBe(201)
+
+    const data = await editResponse.json() as { link: { geo?: Record<string, string> } }
+    expect(data.link.geo).toBeUndefined()
   })
 
   it('returns 404 when editing non-existent link', async () => {

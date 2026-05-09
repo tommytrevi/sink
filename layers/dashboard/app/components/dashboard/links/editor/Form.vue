@@ -41,9 +41,18 @@ const form = useForm({
     redirectWithQuery: props.link.redirectWithQuery ?? false,
     password: props.link.password ?? '',
     unsafe: props.link.unsafe ?? false,
+    geo: props.link.geo ? Object.entries(props.link.geo).map(([country, url]) => ({ country, url })) : [],
   } satisfies LinkFormData,
   onSubmit: async ({ value }) => {
     try {
+      const geoRecord: Record<string, string> = {}
+      value.geo?.forEach((g) => {
+        const country = g.country.trim().toUpperCase()
+        const url = g.url.trim()
+        if (country && url) {
+          geoRecord[country] = url
+        }
+      })
       const linkData = {
         url: value.url,
         slug: value.slug,
@@ -60,6 +69,7 @@ const form = useForm({
         redirectWithQuery: value.redirectWithQuery,
         password: value.password || undefined,
         unsafe: value.unsafe || undefined,
+        geo: Object.keys(geoRecord).length > 0 ? geoRecord : undefined,
       }
       const { link: newLink } = await useAPI<{ link: Link }>(
         props.isEdit ? '/api/link/edit' : '/api/link/create',

@@ -1,3 +1,20 @@
+export function getCountryCodes() {
+  const regionNames = new Intl.DisplayNames(['en'], { type: 'region' })
+  const result: string[] = []
+
+  for (let i = 65; i <= 90; i++) {
+    for (let j = 65; j <= 90; j++) {
+      const code = String.fromCharCode(i) + String.fromCharCode(j)
+
+      if (regionNames.of(code) !== code) {
+        result.push(code)
+      }
+    }
+  }
+
+  return result
+}
+
 /**
  * Get region/country display name
  * @param code - ISO 3166-1 alpha-2 country code (e.g., 'CN', 'JP', 'US')

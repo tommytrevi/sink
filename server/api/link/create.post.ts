@@ -36,6 +36,7 @@ defineRouteMeta({
               redirectWithQuery: { type: 'boolean', description: 'Append query parameters to destination URL' },
               password: { type: 'string', description: 'Password protection for the link' },
               unsafe: { type: 'boolean', description: 'Mark link as unsafe, showing a warning page before redirect' },
+              geo: { type: 'object', additionalProperties: { type: 'string' }, description: 'Geo-routing rules (country code to URL)' },
             },
           },
         },
