@@ -1,7 +1,7 @@
 import { generateMock } from '@anatine/zod-mock'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { fetch, fetchWithAuth, postJson, putJson } from '../utils'
+import { deleteStoredLink, expectMaskedPassword, expectStoredHashedPassword, fetch, fetchWithAuth, getStoredLink, postJson, putJson } from '../utils'
 
 const linkSchema = z.object({
   url: z.string().url(),
@@ -91,6 +91,22 @@ describe.sequential('/api/link/create', () => {
     expect(duplicateResponse.status).toBe(409)
   })
 
+  it('masks password in response and stores hashed password', async () => {
+    const password = 'secret123'
+    const payload = {
+      url: 'https://example.com',
+      slug: `create-password-${crypto.randomUUID()}`,
+      password,
+    }
+
+    const response = await postJson('/api/link/create', payload)
+    expect(response.status).toBe(201)
+
+    const data = await response.json() as { link: { password?: string } }
+    expectMaskedPassword(data.link.password, password)
+    await expectStoredHashedPassword(payload.slug, password)
+  })
+
   it('returns 400 when url is missing', async () => {
     const response = await postJson('/api/link/create', { slug: 'test-slug' })
     expect(response.status).toBe(400)
@@ -150,6 +166,22 @@ describe.sequential('/api/link/upsert', () => {
     expect(response.status).toBe(200)
   })
 
+  it('masks password in response and stores hashed password', async () => {
+    const password = 'upsert-secret123'
+    const payload = {
+      url: 'https://example.com',
+      slug: `upsert-password-${crypto.randomUUID()}`,
+      password,
+    }
+
+    const response = await postJson('/api/link/upsert', payload)
+    expect(response.status).toBe(201)
+
+    const data = await response.json() as { link: { password?: string } }
+    expectMaskedPassword(data.link.password, password)
+    await expectStoredHashedPassword(payload.slug, password)
+  })
+
   it('returns 401 when accessing without auth', async () => {
     const response = await postJson('/api/link/upsert', {}, false)
     expect(response.status).toBe(401)
@@ -164,6 +196,24 @@ describe.sequential('/api/link/query', () => {
     const data = await response.json() as { url: string, slug: string }
     expect(data).toHaveProperty('url')
     expect(data).toHaveProperty('slug')
+  })
+
+  it('returns masked password without exposing plaintext or hash', async () => {
+    const password = 'query-secret123'
+    const payload = {
+      url: 'https://example.com',
+      slug: `query-password-${crypto.randomUUID()}`,
+      password,
+    }
+
+    const createResponse = await postJson('/api/link/create', payload)
+    expect(createResponse.status).toBe(201)
+
+    const response = await fetchWithAuth(`/api/link/query?slug=${payload.slug}`)
+    expect(response.status).toBe(200)
+
+    const data = await response.json() as { password?: string }
+    expectMaskedPassword(data.password, password)
   })
 
   it('returns 404 when slug does not exist', async () => {
@@ -199,6 +249,25 @@ describe.sequential('/api/link/list', () => {
 
     const data = await response.json() as { links: unknown[] }
     expect(data.links.length).toBeLessThanOrEqual(5)
+  })
+
+  it('returns masked passwords without exposing plaintext or hashes', async () => {
+    const password = 'list-secret123'
+    const payload = {
+      url: 'https://example.com',
+      slug: `list-password-${crypto.randomUUID()}`,
+      password,
+    }
+
+    const createResponse = await postJson('/api/link/create', payload)
+    expect(createResponse.status).toBe(201)
+
+    const response = await fetchWithAuth('/api/link/list?limit=999')
+    expect(response.status).toBe(200)
+
+    const data = await response.json() as { links: { slug: string, password?: string }[] }
+    const link = data.links.find(link => link.slug === payload.slug)
+    expectMaskedPassword(link?.password, password)
   })
 
   it('returns 400 when limit exceeds maximum', async () => {
@@ -237,20 +306,44 @@ describe.sequential('/api/link/edit', () => {
     expect(data).toHaveProperty('shortLink')
   })
 
-  it('removes password when not provided in edit', async () => {
-    const slug = testLinkPayload.slug
+  it('preserves, changes, and clears password with edit semantics', async () => {
+    const initialPassword = 'secret123'
+    const newPassword = 'changed456'
+    const payload = {
+      url: 'https://example.com',
+      slug: `edit-password-${crypto.randomUUID()}`,
+      password: initialPassword,
+    }
 
-    // Set a password on the link
-    const setPasswordResponse = await putJson('/api/link/edit', { ...testLinkPayload, password: 'secret123' })
-    expect(setPasswordResponse.status).toBe(201)
-    const setData = await setPasswordResponse.json() as { link: { password?: string } }
-    expect(setData.link.password).toBe('secret123')
+    const createResponse = await postJson('/api/link/create', payload)
+    expect(createResponse.status).toBe(201)
 
-    // Edit the link without providing a password (user cleared the field)
-    const removePasswordResponse = await putJson('/api/link/edit', { url: testLinkPayload.url, slug })
-    expect(removePasswordResponse.status).toBe(201)
-    const removeData = await removePasswordResponse.json() as { link: { password?: string } }
-    expect(removeData.link.password).toBeUndefined()
+    const createdData = await createResponse.json() as { link: { password?: string } }
+    expectMaskedPassword(createdData.link.password, initialPassword)
+    const storedAfterCreate = await getStoredLink(payload.slug)
+    await expectStoredHashedPassword(payload.slug, initialPassword)
+
+    const preservePasswordResponse = await putJson('/api/link/edit', { url: payload.url, slug: payload.slug })
+    expect(preservePasswordResponse.status).toBe(201)
+    const preserveData = await preservePasswordResponse.json() as { link: { password?: string } }
+    expectMaskedPassword(preserveData.link.password, initialPassword)
+    const storedAfterPreserve = await getStoredLink(payload.slug)
+    expect(storedAfterPreserve?.password).toBe(storedAfterCreate?.password)
+
+    const changePasswordResponse = await putJson('/api/link/edit', { url: payload.url, slug: payload.slug, password: newPassword })
+    expect(changePasswordResponse.status).toBe(201)
+    const changeData = await changePasswordResponse.json() as { link: { password?: string } }
+    expectMaskedPassword(changeData.link.password, newPassword)
+    const storedAfterChange = await getStoredLink(payload.slug)
+    await expectStoredHashedPassword(payload.slug, newPassword)
+    expect(storedAfterChange?.password).not.toBe(storedAfterCreate?.password)
+
+    const clearPasswordResponse = await putJson('/api/link/edit', { url: payload.url, slug: payload.slug, password: '' })
+    expect(clearPasswordResponse.status).toBe(201)
+    const clearData = await clearPasswordResponse.json() as { link: { password?: string } }
+    expect(clearData.link.password).toBeUndefined()
+    const storedAfterClear = await getStoredLink(payload.slug)
+    expect(storedAfterClear?.password).toBeUndefined()
   })
 
   it('removes optional fields when not provided in edit', async () => {
@@ -316,7 +409,11 @@ describe.sequential('/api/link/edit', () => {
 })
 
 describe.sequential('/api/link/edit unsafe', () => {
-  const unsafePayload = { ...testLinkPayload, url: 'https://example.com', slug: 'unsafe-test-link' }
+  const unsafePayload = { ...testLinkPayload, url: 'https://example.com', slug: `unsafe-test-${crypto.randomUUID()}` }
+
+  afterAll(async () => {
+    await deleteStoredLink(unsafePayload.slug)
+  })
 
   it('creates link with unsafe flag', async () => {
     const response = await postJson('/api/link/create', { ...unsafePayload, unsafe: true })

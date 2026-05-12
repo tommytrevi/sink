@@ -1,5 +1,9 @@
 import type { z } from 'zod'
-import { LinkSchema } from '#shared/schemas/link'
+import { EditLinkPasswordSchema, LinkSchema } from '#shared/schemas/link'
+
+const EditLinkSchema = LinkSchema.extend({
+  password: EditLinkPasswordSchema,
+})
 
 defineRouteMeta({
   openAPI: {
@@ -43,7 +47,7 @@ export default eventHandler(async (event) => {
       statusText: 'Preview mode cannot edit links.',
     })
   }
-  const link = await readValidatedBody(event, LinkSchema.parse)
+  const link = await readValidatedBody(event, EditLinkSchema.parse)
 
   const existingLink: z.infer<typeof LinkSchema> | null = await getLink(event, link.slug)
   if (!existingLink) {
@@ -53,42 +57,13 @@ export default eventHandler(async (event) => {
     })
   }
 
-  // Auto-detect unsafe URL when URL changes and unsafe not explicitly set
-  if (link.unsafe === undefined && link.url !== existingLink.url) {
-    const safe = await isSafeUrl(event, link.url)
-    if (!safe) {
-      link.unsafe = true
-    }
-  }
+  if (link.url !== existingLink.url)
+    await detectUnsafeLink(event, link)
 
-  const newLink = {
-    ...existingLink,
-    ...link,
-    id: existingLink.id,
-    createdAt: existingLink.createdAt,
-    updatedAt: Math.floor(Date.now() / 1000),
-  }
-  const optionalFields = [
-    'comment',
-    'title',
-    'description',
-    'image',
-    'apple',
-    'google',
-    'cloaking',
-    'redirectWithQuery',
-    'password',
-    'expiration',
-    'unsafe',
-    'geo',
-  ] as const
-  for (const field of optionalFields) {
-    if (link[field] === undefined) {
-      delete newLink[field]
-    }
-  }
+  const newLink = mergeEditableLink(existingLink, link)
+  await applyEditableLinkPassword(newLink, link.password)
+
   await putLink(event, newLink)
   setResponseStatus(event, 201)
-  const shortLink = buildShortLink(event, newLink.slug)
-  return { link: newLink, shortLink }
+  return buildLinkResponse(event, newLink)
 })

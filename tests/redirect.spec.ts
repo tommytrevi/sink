@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { fetch, postJson } from './utils'
+import { afterAll, describe, expect, it } from 'vitest'
+import { deleteStoredLinks, fetch, postJson } from './utils'
 
 type CfRequestInit = RequestInit & { cf?: { country?: string } }
+
+const createdSlugs: string[] = []
+
+afterAll(async () => {
+  await deleteStoredLinks(createdSlugs)
+})
 
 describe('/', () => {
   it('returns 200 for homepage request', async () => {
@@ -19,6 +25,7 @@ describe('/', () => {
       apple,
     })
     expect(createResponse.status).toBe(201)
+    createdSlugs.push(slug)
     const createData = await createResponse.json() as { link: { apple?: string } }
     expect(createData.link.apple).toBe(apple)
 
@@ -43,6 +50,7 @@ describe('/', () => {
       geo: { CN: cnUrl },
     })
     expect(createResponse.status).toBe(201)
+    createdSlugs.push(slug)
 
     const options: CfRequestInit = { redirect: 'manual', cf: { country: 'CN' } }
     const response = await fetch(`/${slug}`, options as RequestInit)
@@ -61,6 +69,7 @@ describe('/', () => {
       geo: { CN: 'https://cn.example.com/landing' },
     })
     expect(createResponse.status).toBe(201)
+    createdSlugs.push(slug)
 
     const options: CfRequestInit = { redirect: 'manual', cf: { country: 'US' } }
     const response = await fetch(`/${slug}`, options as RequestInit)
@@ -80,6 +89,7 @@ describe('/', () => {
       geo: { CN: cnUrl },
     })
     expect(createResponse.status).toBe(201)
+    createdSlugs.push(slug)
 
     const options: CfRequestInit = { redirect: 'manual', cf: { country: 'CN' } }
     const response = await fetch(`/${slug}`, options as RequestInit)
@@ -100,6 +110,7 @@ describe('/', () => {
       geo: { CN: 'https://cn.example.com/landing' },
     })
     expect(createResponse.status).toBe(201)
+    createdSlugs.push(slug)
 
     const options: CfRequestInit = {
       redirect: 'manual',
@@ -112,5 +123,38 @@ describe('/', () => {
 
     expect(response.status).toBe(301)
     expect(response.headers.get('Location')).toBe(apple)
+  })
+})
+
+describe.sequential('password protected redirect', () => {
+  it('shows password page without password, rejects wrong password, and redirects with correct password', async () => {
+    const password = 'redirect-secret123'
+    const payload = {
+      url: 'https://example.com/redirect-target',
+      slug: `redirect-password-${crypto.randomUUID()}`,
+      password,
+    }
+
+    const createResponse = await postJson('/api/link/create', payload)
+    expect(createResponse.status).toBe(201)
+    createdSlugs.push(payload.slug)
+
+    const passwordPageResponse = await fetch(`/${payload.slug}`, { redirect: 'manual' })
+    expect(passwordPageResponse.status).toBe(200)
+    expect(await passwordPageResponse.text()).toContain('Password Required')
+
+    const wrongPasswordResponse = await fetch(`/${payload.slug}`, {
+      redirect: 'manual',
+      headers: { 'x-link-password': 'wrong-password' },
+    })
+    expect(wrongPasswordResponse.status).toBe(403)
+
+    const correctPasswordResponse = await fetch(`/${payload.slug}`, {
+      redirect: 'manual',
+      headers: { 'x-link-password': password },
+    })
+    expect(correctPasswordResponse.status).toBeGreaterThanOrEqual(300)
+    expect(correctPasswordResponse.status).toBeLessThan(400)
+    expect(correctPasswordResponse.headers.get('location')).toBe(payload.url)
   })
 })

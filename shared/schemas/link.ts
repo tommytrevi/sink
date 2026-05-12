@@ -1,5 +1,6 @@
 import { customAlphabet } from 'nanoid'
 import { z } from 'zod'
+import { LINK_PASSWORD_MASK_PREFIX } from '../utils/link-password'
 
 const { slugRegex } = useAppConfig()
 
@@ -15,6 +16,16 @@ const GeoSchema = z.preprocess((value) => {
     Object.entries(value as Record<string, unknown>).map(([key, url]) => [key.trim().toUpperCase(), url]),
   )
 }, z.record(z.string().trim().regex(/^[A-Z]{2}$/), z.string().trim().url().max(2048)))
+
+export const LinkPasswordSchema = z.string().trim().min(1).max(128).refine(
+  password => !password.startsWith(LINK_PASSWORD_MASK_PREFIX),
+  'masked password cannot be submitted',
+)
+
+export const EditLinkPasswordSchema = z.string().trim().max(128).refine(
+  password => !password.startsWith(LINK_PASSWORD_MASK_PREFIX),
+  'masked password cannot be submitted',
+).optional()
 
 export const LinkSchema = z.object({
   id: z.string().trim().max(26).default(nanoid(10)),
@@ -34,7 +45,7 @@ export const LinkSchema = z.object({
   google: z.string().trim().url().max(2048).optional(),
   cloaking: z.boolean().optional(),
   redirectWithQuery: z.boolean().optional(),
-  password: z.string().trim().min(1).max(128).optional(),
+  password: LinkPasswordSchema.optional(),
   unsafe: z.boolean().optional(),
   geo: GeoSchema.optional(),
 })

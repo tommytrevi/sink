@@ -34,24 +34,16 @@ defineRouteMeta({
 export default eventHandler(async (event) => {
   const link = await readValidatedBody(event, LinkSchema.parse)
 
-  link.slug = normalizeSlug(event, link.slug)
-
-  // Auto-detect unsafe URL via Safe Browsing DoH
-  if (link.unsafe === undefined) {
-    const safe = await isSafeUrl(event, link.url)
-    if (!safe) {
-      link.unsafe = true
-    }
-  }
+  await prepareIncomingLink(event, link)
 
   const existingLink = await getLink(event, link.slug)
   if (existingLink) {
-    const shortLink = buildShortLink(event, link.slug)
-    return { link: existingLink, shortLink, status: 'existing' }
+    return { ...buildLinkResponse(event, existingLink), status: 'existing' }
   }
+
+  await hashLinkPasswordForCreate(link)
 
   await putLink(event, link)
   setResponseStatus(event, 201)
-  const shortLink = buildShortLink(event, link.slug)
-  return { link, shortLink, status: 'created' }
+  return { ...buildLinkResponse(event, link), status: 'created' }
 })

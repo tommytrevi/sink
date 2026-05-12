@@ -107,6 +107,10 @@ export default eventHandler(async (event) => {
         updatedAt: linkData.updatedAt || now,
       }
 
+      if (link.password) {
+        link.password = await normalizeLinkPasswordForStorage(link.password)
+      }
+
       await putLink(event, link)
       result.successItems.push({ index: i, slug, url: linkData.url })
       result.success++

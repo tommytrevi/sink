@@ -1,6 +1,8 @@
 import type { H3Event } from 'h3'
+import type { AiChatResponse } from '../../utils/ai'
 import { destr } from 'destr'
 import { z } from 'zod'
+import { stripCodeFence } from '../../utils/ai'
 
 defineRouteMeta({
   openAPI: {
@@ -24,28 +26,6 @@ defineRouteMeta({
     ],
   },
 })
-
-interface AiChatResponse {
-  response?: string
-  choices?: { message?: { content?: string } }[]
-}
-
-function stripCodeFence(content: string): string {
-  const trimmed = content.trim()
-  if (!trimmed.startsWith('```') || !trimmed.endsWith('```')) {
-    return trimmed
-  }
-
-  const lines = trimmed.split('\n')
-  const firstLine = lines[0]?.trim()
-  if (lines.length < 2 || (firstLine !== '```' && firstLine !== '```json')) {
-    return trimmed
-  }
-
-  lines.shift()
-  lines.pop()
-  return lines.join('\n').trim()
-}
 
 function fallbackMetadata(url: string): { title: string, description: string } {
   try {
