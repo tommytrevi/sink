@@ -49,15 +49,15 @@
       "migrations_dir": "drizzle"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "R2",
+  // "r2_buckets": [
+    // {
+      // "binding": "R2",
       // preview_bucket_name: DEPLOY_R2_PREVIEW_BUCKET_NAME (falls back to DEPLOY_R2_BUCKET_NAME)
       // omit DEPLOY_R2_BUCKET_NAME to drop R2 from generated deploy config
       // "preview_bucket_name": "sink",
       // "bucket_name": "sink" // Override with DEPLOY_R2_BUCKET_NAME
-    }
-  ],
+    // }
+  // ],
   "triggers": {
     "crons": ["0 0 * * *"] // Run backup task daily at 00:00 UTC
   }
