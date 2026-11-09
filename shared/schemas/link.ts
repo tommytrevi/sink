@@ -39,7 +39,7 @@ const TagsSchema = z.preprocess((value) => {
   if (!Array.isArray(value))
     return value
   return [...new Set(value.map(tag => typeof tag === 'string' ? tag.trim().toLowerCase() : tag))]
-}, z.array(z.string().min(1).max(32)).max(10)).default([])
+}, z.array(z.string().min(1).max(32)).max(MAX_LINK_TAGS)).default([])
 
 export const LinkPasswordSchema = z.string().trim().min(1).max(128).refine(
   password => !password.startsWith(LINK_PASSWORD_MASK_PREFIX),
