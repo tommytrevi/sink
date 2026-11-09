@@ -9,7 +9,7 @@
  * Just deploy this file and the retry logic is active everywhere.
  */
 
-import { ... } from '../utils/d1-retry'
+import { withD1Retry } from '../utils/d1-retry'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook("request", (event) => {
