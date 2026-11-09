@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { X } from '@lucide/vue'
+import { MAX_LINK_TAGS } from '#shared/schemas/link'
 
 const model = defineModel<string[]>({ required: true })
 const { t } = useI18n()
