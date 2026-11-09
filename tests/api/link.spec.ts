@@ -133,6 +133,24 @@ describe('/api/link/create', { concurrent: false }, () => {
     })])
   })
 
+  it('accepts up to 100 tags and rejects more', async () => {
+    const tags = Array.from({ length: 100 }, (_, index) => `tag-${index}`)
+    const response = await postJson('/api/link/create', {
+      ...createLinkPayload(),
+      tags,
+    })
+  
+    expect(response.status).toBe(201)
+    const data = await response.json() as { link: { tags: string[] } }
+    expect(data.link.tags).toHaveLength(100)
+  
+    const tooManyTagsResponse = await postJson('/api/link/create', {
+      ...createLinkPayload(),
+      tags: [...tags, 'tag-100'],
+    })
+    expect(tooManyTagsResponse.status).toBe(400)
+  })
+
   it('returns 400 when URL exceeds the configured maximum length', async () => {
     const url = `https://example.com/?payload=${'a'.repeat(16_384)}`
     const response = await postJson('/api/link/create', {
