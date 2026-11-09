@@ -22,6 +22,7 @@ if (!Number.isSafeInteger(configuredMaxUrlLength)
 }
 
 export const MAX_URL_LENGTH = configuredMaxUrlLength
+export const MAX_LINK_TAGS = 100
 
 export const nanoid = (length: number = slugDefaultLength) => customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', length)
 
