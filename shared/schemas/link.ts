@@ -90,7 +90,7 @@ export const LinkFieldsSchema = z.object({
   password: LinkPasswordSchema.optional(),
   unsafe: z.boolean().optional().describe('Show a warning page before redirecting.'),
   geo: GeoSchema.optional().describe('Geo-routing rules mapping a two-letter country code to a URL.'),
-  tags: TagsSchema.describe('Up to 10 normalized link tags, each 1-32 characters.'),
+  tags: TagsSchema.describe(`Up to ${MAX_LINK_TAGS} normalized link tags, each 1-32 characters.`),
 })
 
 export const CreateLinkSchema = LinkFieldsSchema.extend({
