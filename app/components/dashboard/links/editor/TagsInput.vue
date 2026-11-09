@@ -39,7 +39,7 @@ function commit(): boolean {
     return true
   }
 
-  if (model.value.length >= 10) {
+  if (model.value.length >= MAX_LINK_TAGS) {
     error.value = t('links.form.tags_limit')
     return false
   }
